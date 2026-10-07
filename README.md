@@ -1,4 +1,4 @@
-#  QuantumShield - A Cloud-Deployed Hybrid Quantum-Classical Deep Learning Intrusion Detection System with Explainable AI
+#  QuantumShield - A Cloud-Deployed Hybrid Quantum-Classical Deep Learning Intrusion Detection System with Explainable AI.
 
 **Esvanth Mohankumar** - X24311073@student.ncirl.ie  
 MSc Artificial Intelligence, NCI Dublin 
@@ -22,7 +22,7 @@ pip install -r requirements.txt
 
 ### 2. Download Datasets
 - **CICIDS2017** → https://www.unb.ca/cic/datasets/ids-2017.html  
-  Place all 8 day-wise CSVs in `data/raw/cicids2017/`
+  Place all 5 day-wise CSVs in `data/raw/cicids2017/`
 - **CICIoT2023** → http://cicresearch.ca/IOTDataset/CIC_IOT_Dataset2023/  
   Place CSV files in `data/raw/ciciot2023/`
 
