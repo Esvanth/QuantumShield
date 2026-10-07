@@ -1,6 +1,8 @@
 #  QuantumShield - A Cloud-Deployed Hybrid Quantum-Classical Deep Learning Intrusion Detection System with Explainable AI
 
-> Esvanth Mohankumar (x24311073) ·  MSc AI, NCI Dublin · Practicum 
+> Esvanth Mohankumar - X24311073@student.ncirl.ie
+> MSc Artificial Intelligence , NCI Dublin
+> Title : Dissertation Project
 
 ---
 
