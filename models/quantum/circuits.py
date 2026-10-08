@@ -27,11 +27,6 @@ N_LAYERS = 4
 
 dev_train = qml.device("default.qubit", wires=N_QUBITS)
 
-# IBM hardware device — uncomment and set your token for hardware validation
-# from qiskit_ibm_runtime import QiskitRuntimeService
-# QiskitRuntimeService.save_account(channel="ibm_quantum", token="YOUR_TOKEN_HERE", overwrite=True)
-# dev_hw = qml.device("qiskit.ibmq", wires=N_QUBITS, backend="ibm_brisbane", shots=1024)
-
 
 # ---------------------------------------------------------------------------
 # Core QNN circuit

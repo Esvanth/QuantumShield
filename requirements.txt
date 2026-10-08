@@ -17,9 +17,9 @@ pennylane==0.35.0
 pennylane-lightning==0.35.0
 
 # IBM Quantum (for hardware validation — optional)
-# qiskit==1.1.0
-# qiskit-ibm-runtime==0.20.0
-# pennylane-qiskit==0.35.0
+ qiskit==1.1.0
+ qiskit-ibm-runtime==0.20.0
+ pennylane-qiskit==0.35.0
 
 # Explainability
 shap==0.45.0
