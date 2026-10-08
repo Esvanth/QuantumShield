@@ -1,12 +1,12 @@
-# QuantumShield 🛡️
+# QuantumShield 
 **A Cloud-Deployed Hybrid Quantum-Classical Deep Learning Intrusion Detection System with Explainable AI**
 
-> Esvanth Mohankumar (x24311073) ·  MSc AI, NCI Dublin · Practicum 
+> Esvanth Mohankumar (x24311073) · MSc AI, NCI Dublin · Practicum CA2
 
 ---
 
 ## Overview
-QuantumShield detects network intrusions using a soft-voting ensemble of classical deep learning models (DNN, CNN, LSTM) and a hybrid quantum neural network (QNN built with PennyLane). SHAP explainability is applied at the ensemble boundary so every detection comes with a ranked feature explanation. The system is containerised and deployed on AWS EC2 with a Flask REST API and Streamlit dashboard.
+QuantumShield detects network intrusions using a soft-voting ensemble of classical deep learning models (DNN, CNN-1D, LSTM) and a hybrid quantum neural network (HybridQNN built with PennyLane).SHAP explainability is applied at the ensemble boundary so every detection comes with a ranked feature explanation. The system is containerised and deployed on AWS EC2 with a Flask REST API and Streamlit dashboard.
 
 ---
 
@@ -14,14 +14,14 @@ QuantumShield detects network intrusions using a soft-voting ensemble of classic
 
 ### 1. Clone & Install
 ```bash
-git clone https://github.com/yourusername/quantumshield.git
+git clone https://github.com/esvanth/quantumshield.git
 cd quantumshield
 pip install -r requirements.txt
 ```
 
 ### 2. Download Datasets
 - **CICIDS2017** → https://www.unb.ca/cic/datasets/ids-2017.html  
-  Place all 8 day-wise CSVs in `data/raw/cicids2017/`
+  Place the 5 day-wise CSVs (Monday–Friday) in `data/raw/cicids2017/`
 - **CICIoT2023** → http://cicresearch.ca/IOTDataset/CIC_IOT_Dataset2023/  
   Place CSV files in `data/raw/ciciot2023/`
 
@@ -29,6 +29,7 @@ pip install -r requirements.txt
 ```bash
 python data/preprocessing.py
 ```
+Applies StandardScaler + PCA (16 components, capturing ~83.67% variance on CICIDS2017).  
 Outputs saved to `data/processed/cicids2017/` and `data/processed/ciciot2023/`.
 
 ### 4. Train Classical Baselines
@@ -40,7 +41,7 @@ python models/classical/lstm.py
 
 ### 5. Train Quantum Models
 ```bash
-python models/quantum/circuits.py   # HybridQNN
+python models/quantum/circuits.py   # HybridQNN sanity check
 python models/quantum/qae.py        # Quantum Autoencoder (H4)
 python models/quantum/qsvm.py       # QSVM (optional — slow on CPU)
 ```
@@ -70,7 +71,7 @@ streamlit run deployment/dashboard.py
 
 ```
 Raw Traffic (78 features)
-    ↓ StandardScaler + PCA (8 components)
+    ↓ StandardScaler + PCA (16 components)
     ├── DNN (classical)
     ├── CNN-1D (classical)
     ├── LSTM (classical)
@@ -89,10 +90,10 @@ Raw Traffic (78 features)
 
 | ID | Claim | Metric | Threshold |
 |----|-------|--------|-----------|
-| H1 | Ensemble ≥ best classical | F1 + McNemar | p < 0.05 |
-| H2 | QNN parameter efficiency | Param ratio | ≥ 3× fewer |
-| H3 | SHAP plausibility | Expert review | ≥ 4/5 features |
-| H4 | QAE zero-day detection | AUROC | ≥ 0.85 |
+| H1 | Ensemble F1 ≥ best classical baseline | F1 + McNemar test | p < 0.05 |
+| H2 | QNN parameter efficiency vs classical models | Parameter ratio | ≥ 3× fewer |
+| H3 | SHAP feature explanations match expert knowledge | Expert plausibility review | ≥ 4/5 features |
+| H4 | QAE zero-day / anomaly detection | AUROC | ≥ 0.85 |
 
 ---
 
@@ -100,8 +101,8 @@ Raw Traffic (78 features)
 ```
 quantumshield/
 ├── data/
-│   ├── raw/cicids2017/       ← place CSVs here
-│   ├── raw/ciciot2023/       ← place CSVs here
+│   ├── raw/cicids2017/       ← place 5 day-wise CSVs here (Mon–Fri)
+│   ├── raw/ciciot2023/       ← place CSV files here
 │   ├── processed/            ← auto-generated .npy + .pkl
 │   └── preprocessing.py
 ├── models/
@@ -120,20 +121,10 @@ quantumshield/
 
 ---
 
-## IBM Quantum (Hardware Validation)
-Uncomment the IBM device lines in `models/quantum/circuits.py` and add your API token:
-```python
-QiskitRuntimeService.save_account(channel="ibm_quantum", token="YOUR_TOKEN", overwrite=True)
-dev_hw = qml.device("qiskit.ibmq", wires=8, backend="ibm_brisbane", shots=1024)
-```
-Free tier available at: https://quantum.ibm.com/
-
----
-
 ## Docker Deployment
 ```bash
 docker build -t quantumshield -f deployment/Dockerfile .
-docker run -p 5000:5000 quantumshield
+docker run -p 5000:5000 -p 8501:8501 quantumshield
 ```
 
 ---
