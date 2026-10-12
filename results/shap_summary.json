@@ -1,0 +1,157 @@
+{
+  "dataset": "cicids2017",
+  "method": "KernelSHAP on 16 PCA components, projected onto 78 original features via sum_j mean|phi_j| * |pca.components_[j, i]|. Approximate importance ranking, not exact Shapley values on the raw features.",
+  "model_explained": "weighted soft-voting ensemble",
+  "ensemble_weights": {
+    "DNN": 1,
+    "CNN-1D": 4,
+    "LSTM": 4,
+    "HybridQNN": 1
+  },
+  "n_background": 30,
+  "n_explained": 40,
+  "explained_class": "attack",
+  "nsamples": 200,
+  "component_importance": {
+    "PC1": 0.13883582808065922,
+    "PC2": 0.0380853865522423,
+    "PC3": 0.08120601891140393,
+    "PC4": 0.1485895591612298,
+    "PC5": 0.11997826564061313,
+    "PC6": 0.06984619913646799,
+    "PC7": 0.021443663980282354,
+    "PC8": 0.08515635970073382,
+    "PC9": 0.0746544404040322,
+    "PC10": 0.060143801039125235,
+    "PC11": 0.006077804429220795,
+    "PC12": 0.013155193818706681,
+    "PC13": 0.07133795317830471,
+    "PC14": 0.017333019065539267,
+    "PC15": 0.023703464409612802,
+    "PC16": 0.02470122345207749
+  },
+  "top_components": [
+    "PC4",
+    "PC1",
+    "PC5",
+    "PC8",
+    "PC3"
+  ],
+  "top20_features": [
+    {
+      "feature": "Fwd PSH Flags",
+      "importance": 0.023653
+    },
+    {
+      "feature": "SYN Flag Count",
+      "importance": 0.023653
+    },
+    {
+      "feature": "Flow Packets/s",
+      "importance": 0.023151
+    },
+    {
+      "feature": "Fwd Packets/s",
+      "importance": 0.022546
+    },
+    {
+      "feature": "PSH Flag Count",
+      "importance": 0.022546
+    },
+    {
+      "feature": "Active Mean",
+      "importance": 0.021511
+    },
+    {
+      "feature": "Min Packet Length",
+      "importance": 0.021151
+    },
+    {
+      "feature": "Bwd IAT Total",
+      "importance": 0.021047
+    },
+    {
+      "feature": "Fwd Packet Length Max",
+      "importance": 0.020835
+    },
+    {
+      "feature": "Destination Port",
+      "importance": 0.020814
+    },
+    {
+      "feature": "Active Max",
+      "importance": 0.020739
+    },
+    {
+      "feature": "Fwd Packet Length Std",
+      "importance": 0.020673
+    },
+    {
+      "feature": "Bwd Packet Length Min",
+      "importance": 0.020632
+    },
+    {
+      "feature": "Bwd IAT Std",
+      "importance": 0.02036
+    },
+    {
+      "feature": "Fwd Packet Length Mean",
+      "importance": 0.01991
+    },
+    {
+      "feature": "Avg Fwd Segment Size",
+      "importance": 0.01991
+    },
+    {
+      "feature": "Bwd IAT Min",
+      "importance": 0.019907
+    },
+    {
+      "feature": "URG Flag Count",
+      "importance": 0.019771
+    },
+    {
+      "feature": "Bwd IAT Max",
+      "importance": 0.018944
+    },
+    {
+      "feature": "Fwd IAT Min",
+      "importance": 0.018942
+    }
+  ],
+  "top5_features": [
+    {
+      "rank": 1,
+      "feature": "Fwd PSH Flags",
+      "importance": 0.023653,
+      "matches_reference_list": true
+    },
+    {
+      "rank": 2,
+      "feature": "SYN Flag Count",
+      "importance": 0.023653,
+      "matches_reference_list": true
+    },
+    {
+      "rank": 3,
+      "feature": "Flow Packets/s",
+      "importance": 0.023151,
+      "matches_reference_list": true
+    },
+    {
+      "rank": 4,
+      "feature": "Fwd Packets/s",
+      "importance": 0.022546,
+      "matches_reference_list": true
+    },
+    {
+      "rank": 5,
+      "feature": "PSH Flag Count",
+      "importance": 0.022546,
+      "matches_reference_list": true
+    }
+  ],
+  "reference_list_hits": 5,
+  "h3_verdict": true,
+  "h3_note": "Set h3_verdict to true or false after reviewing the top-5 against domain expectation. reference_list_hits is an indicator, not the test: every CICIDS2017 column is a network feature, so the hypothesis should ask whether these are the features an analyst would expect to discriminate attacks."
+}

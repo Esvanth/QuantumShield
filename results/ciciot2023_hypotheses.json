@@ -1,0 +1,200 @@
+{
+  "dataset": "ciciot2023",
+  "per_model": {
+    "DNN": {
+      "threshold": 0.3646,
+      "accuracy": 0.9945696029865748,
+      "precision": 0.9998135054933602,
+      "recall": 0.9899149532405748,
+      "f1": 0.9948396075809467,
+      "roc_auc": 0.9986184290586468,
+      "confusion": [
+        [
+          164057,
+          34
+        ],
+        [
+          1857,
+          182277
+        ]
+      ],
+      "parameters": 3730,
+      "val_f1_at_threshold": 0.995
+    },
+    "CNN-1D": {
+      "threshold": 0.5419,
+      "accuracy": 0.9946356522363414,
+      "precision": 0.9998793264220284,
+      "recall": 0.9899746923436193,
+      "f1": 0.9949023588870333,
+      "roc_auc": 0.9985933272475458,
+      "confusion": [
+        [
+          164069,
+          22
+        ],
+        [
+          1846,
+          182288
+        ]
+      ],
+      "parameters": 22914,
+      "val_f1_at_threshold": 0.995
+    },
+    "LSTM": {
+      "threshold": 0.3646,
+      "accuracy": 0.9947131883121545,
+      "precision": 0.999808075102954,
+      "recall": 0.9901919254455994,
+      "f1": 0.9949767665219633,
+      "roc_auc": 0.9987813075004744,
+      "confusion": [
+        [
+          164056,
+          35
+        ],
+        [
+          1806,
+          182328
+        ]
+      ],
+      "parameters": 56418,
+      "val_f1_at_threshold": 0.9951
+    },
+    "HybridQNN": {
+      "threshold": 0.4089,
+      "accuracy": 0.9937138344461196,
+      "precision": 0.9995552065543883,
+      "recall": 0.9885518155256497,
+      "f1": 0.9940230613175477,
+      "roc_auc": 0.997330728914552,
+      "confusion": [
+        [
+          164010,
+          81
+        ],
+        [
+          2108,
+          182026
+        ]
+      ],
+      "parameters": 410,
+      "val_f1_at_threshold": 0.9941
+    },
+    "Ensemble-equal": {
+      "threshold": 0.271,
+      "accuracy": 0.9946557541819226,
+      "precision": 0.9997258366095858,
+      "recall": 0.9901647713078519,
+      "f1": 0.9949223343619631,
+      "roc_auc": 0.9986512635710837,
+      "confusion": [
+        [
+          164041,
+          50
+        ],
+        [
+          1811,
+          182323
+        ]
+      ],
+      "parameters": 83472,
+      "val_f1_at_threshold": 0.9951,
+      "weights": {
+        "DNN": 1,
+        "CNN-1D": 1,
+        "LSTM": 1,
+        "HybridQNN": 1
+      }
+    },
+    "Ensemble-weighted": {
+      "threshold": 0.2907,
+      "accuracy": 0.9946729844209922,
+      "precision": 0.999819024376868,
+      "recall": 0.9901050322048074,
+      "f1": 0.9949383184302512,
+      "roc_auc": 0.9987158950888301,
+      "confusion": [
+        [
+          164058,
+          33
+        ],
+        [
+          1822,
+          182312
+        ]
+      ],
+      "parameters": 83472,
+      "val_f1_at_threshold": 0.9951,
+      "weights": {
+        "DNN": 4,
+        "CNN-1D": 2,
+        "LSTM": 2,
+        "HybridQNN": 1
+      }
+    }
+  },
+  "H1": {
+    "hypothesis": "H1: the soft-voting ensemble beats the best single model on F1, significant at p < 0.05",
+    "best_single_model": "LSTM",
+    "best_single_f1": 0.9949767665219633,
+    "equal_weight": {
+      "f1": 0.9949223343619631,
+      "margin": -5.4432160000228436e-05,
+      "mcnemar_p": 0.006098945931214356,
+      "discordant_ensemble_only": 14,
+      "discordant_best_only": 34,
+      "supported": false
+    },
+    "weighted": {
+      "weights": {
+        "DNN": 4,
+        "CNN-1D": 2,
+        "LSTM": 2,
+        "HybridQNN": 1
+      },
+      "f1": 0.9949383184302512,
+      "margin": -3.8448091712162125e-05,
+      "mcnemar_p": 0.050016395485646,
+      "discordant_ensemble_only": 15,
+      "discordant_best_only": 29,
+      "supported": false
+    },
+    "supported": false
+  },
+  "H2": {
+    "hypothesis": "H2: HybridQNN reaches >= 90% of the best classical F1 with at least 3x fewer parameters",
+    "hybridqnn_parameters": 410,
+    "hybridqnn_f1": 0.9940230613175477,
+    "classical_parameters": {
+      "DNN": 3730,
+      "CNN-1D": 22914,
+      "LSTM": 56418
+    },
+    "parameter_ratios": {
+      "DNN": 9.1,
+      "CNN-1D": 55.9,
+      "LSTM": 137.6
+    },
+    "min_parameter_ratio": 9.1,
+    "best_classical_model": "LSTM",
+    "best_classical_f1": 0.9949767665219633,
+    "f1_retained": 0.999,
+    "parameter_criterion_met": true,
+    "performance_criterion_met": true,
+    "supported": true
+  },
+  "H3": {
+    "hypothesis": "H3: SHAP attributions are domain-plausible",
+    "status": "not evaluated on this dataset",
+    "supported": null
+  },
+  "H4": {
+    "hypothesis": "H4: QAE reaches AUROC >= 0.85 without attack labels",
+    "auroc": 0.9405,
+    "benign_mean_error": 0.015681743621826172,
+    "attack_mean_error": 0.05988497659564018,
+    "separation_ratio": 3.82,
+    "supported": true
+  }
+}

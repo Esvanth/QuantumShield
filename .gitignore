@@ -24,7 +24,10 @@ models/quantum/*.pth
 models/quantum/*.pkl
 
 # Results (plots generated at runtime)
-results/
+results/**/*.npy
+# results/ holds the evidence: hypothesis JSON, figures, SHAP output.
+# Only the large regenerable arrays are excluded.
+results/**/*.npy
 
 # Notebooks checkpoints
 .ipynb_checkpoints/
@@ -42,3 +45,6 @@ Thumbs.db
 *.env
 .env
 ibm_token.txt
+
+# No numpy arrays anywhere. Large, binary, and all regenerable.
+**/*.npy

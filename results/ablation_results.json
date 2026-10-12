@@ -1,0 +1,32 @@
+[
+  {
+    "architecture": "HybridQNN (StronglyEntanglingLayers)",
+    "quantum_params": 96,
+    "total_params": 410,
+    "precision": 0.774789016405686,
+    "recall": 0.974374628220782,
+    "f1": 0.8631951185688531,
+    "roc_auc": 0.9900159462014961,
+    "train_seconds": 1503.3
+  },
+  {
+    "architecture": "QCNN (convolution + pooling)",
+    "quantum_params": 48,
+    "total_params": 362,
+    "precision": 0.8433323855558715,
+    "recall": 0.9285870824332363,
+    "f1": 0.8839087481932917,
+    "roc_auc": 0.9879811214262331,
+    "train_seconds": 1606.6
+  },
+  {
+    "architecture": "VQC (RY/RZ + CNOT ring)",
+    "quantum_params": 64,
+    "total_params": 378,
+    "precision": 0.7711532969966354,
+    "recall": 0.9722770107385492,
+    "f1": 0.86011424614852,
+    "roc_auc": 0.989350309698345,
+    "train_seconds": 2577.2
+  }
+]

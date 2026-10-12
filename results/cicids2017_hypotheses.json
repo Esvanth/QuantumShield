@@ -1,0 +1,357 @@
+{
+  "dataset": "cicids2017",
+  "per_model": {
+    "DNN": {
+      "threshold": 0.3793,
+      "accuracy": 0.9818371635104598,
+      "precision": 0.9334042876691501,
+      "recall": 0.9609905763751918,
+      "f1": 0.9469965754481227,
+      "roc_auc": 0.9980207404035402,
+      "confusion": [
+        [
+          310093,
+          4380
+        ],
+        [
+          2492,
+          61390
+        ]
+      ],
+      "parameters": 3730,
+      "val_f1_at_threshold": 0.9481
+    },
+    "CNN-1D": {
+      "threshold": 0.4828,
+      "accuracy": 0.9839489368450265,
+      "precision": 0.9463395049336771,
+      "recall": 0.9593312670235747,
+      "f1": 0.9527911008154476,
+      "roc_auc": 0.9985215400090812,
+      "confusion": [
+        [
+          310998,
+          3475
+        ],
+        [
+          2598,
+          61284
+        ]
+      ],
+      "parameters": 22914,
+      "val_f1_at_threshold": 0.9544
+    },
+    "LSTM": {
+      "threshold": 0.399,
+      "accuracy": 0.9837004929233127,
+      "precision": 0.9407676681278734,
+      "recall": 0.9641683103221564,
+      "f1": 0.9523242599707776,
+      "roc_auc": 0.9986809164505477,
+      "confusion": [
+        [
+          310595,
+          3878
+        ],
+        [
+          2289,
+          61593
+        ]
+      ],
+      "parameters": 56418,
+      "val_f1_at_threshold": 0.9538
+    },
+    "HybridQNN": {
+      "threshold": 0.665,
+      "accuracy": 0.9615810548294591,
+      "precision": 0.850807598248308,
+      "recall": 0.9367114367114368,
+      "f1": 0.8916953521987274,
+      "roc_auc": 0.9890681367842548,
+      "confusion": [
+        [
+          303980,
+          10493
+        ],
+        [
+          4043,
+          59839
+        ]
+      ],
+      "parameters": 410,
+      "val_f1_at_threshold": 0.8918
+    },
+    "Ensemble-equal": {
+      "threshold": 0.4926,
+      "accuracy": 0.9826697149502451,
+      "precision": 0.9395617034980907,
+      "recall": 0.959049497511036,
+      "f1": 0.9492055868431857,
+      "roc_auc": 0.9979777441647715,
+      "confusion": [
+        [
+          310532,
+          3941
+        ],
+        [
+          2616,
+          61266
+        ]
+      ],
+      "parameters": 83472,
+      "val_f1_at_threshold": 0.9507,
+      "weights": {
+        "DNN": 1,
+        "CNN-1D": 1,
+        "LSTM": 1,
+        "HybridQNN": 1
+      }
+    },
+    "Ensemble-weighted": {
+      "threshold": 0.468,
+      "accuracy": 0.984255527216503,
+      "precision": 0.9470694472315268,
+      "recall": 0.9604270373501143,
+      "f1": 0.9537014728170053,
+      "roc_auc": 0.9984067350088012,
+      "confusion": [
+        [
+          311044,
+          3429
+        ],
+        [
+          2528,
+          61354
+        ]
+      ],
+      "parameters": 83472,
+      "val_f1_at_threshold": 0.9551,
+      "weights": {
+        "DNN": 1,
+        "CNN-1D": 4,
+        "LSTM": 4,
+        "HybridQNN": 1
+      }
+    }
+  },
+  "H1": {
+    "hypothesis": "H1: the soft-voting ensemble beats the best single model on F1, significant at p < 0.05",
+    "best_single_model": "CNN-1D",
+    "best_single_f1": 0.9527911008154476,
+    "equal_weight": {
+      "f1": 0.9492055868431857,
+      "margin": -0.0035855139722619223,
+      "mcnemar_p": 7.30533247685294e-27,
+      "discordant_ensemble_only": 771,
+      "discordant_best_only": 1255,
+      "supported": false
+    },
+    "weighted": {
+      "weights": {
+        "DNN": 1,
+        "CNN-1D": 4,
+        "LSTM": 4,
+        "HybridQNN": 1
+      },
+      "f1": 0.9537014728170053,
+      "margin": 0.0009103720015577466,
+      "mcnemar_p": 2.1327259187186796e-05,
+      "discordant_ensemble_only": 424,
+      "discordant_best_only": 308,
+      "supported": true
+    },
+    "supported": true
+  },
+  "H2": {
+    "hypothesis": "H2: HybridQNN reaches >= 90% of the best classical F1 with at least 3x fewer parameters",
+    "hybridqnn_parameters": 410,
+    "hybridqnn_f1": 0.8916953521987274,
+    "classical_parameters": {
+      "DNN": 3730,
+      "CNN-1D": 22914,
+      "LSTM": 56418
+    },
+    "parameter_ratios": {
+      "DNN": 9.1,
+      "CNN-1D": 55.9,
+      "LSTM": 137.6
+    },
+    "min_parameter_ratio": 9.1,
+    "best_classical_model": "CNN-1D",
+    "best_classical_f1": 0.9527911008154476,
+    "f1_retained": 0.9359,
+    "parameter_criterion_met": true,
+    "performance_criterion_met": true,
+    "supported": true
+  },
+  "H3": {
+    "hypothesis": "H3: SHAP attributions are domain-plausible",
+    "status": "computed",
+    "detail": {
+      "dataset": "cicids2017",
+      "method": "KernelSHAP on 16 PCA components, projected onto 78 original features via sum_j mean|phi_j| * |pca.components_[j, i]|. Approximate importance ranking, not exact Shapley values on the raw features.",
+      "model_explained": "weighted soft-voting ensemble",
+      "ensemble_weights": {
+        "DNN": 1,
+        "CNN-1D": 4,
+        "LSTM": 4,
+        "HybridQNN": 1
+      },
+      "n_background": 30,
+      "n_explained": 40,
+      "explained_class": "attack",
+      "nsamples": 200,
+      "component_importance": {
+        "PC1": 0.13883582808065922,
+        "PC2": 0.0380853865522423,
+        "PC3": 0.08120601891140393,
+        "PC4": 0.1485895591612298,
+        "PC5": 0.11997826564061313,
+        "PC6": 0.06984619913646799,
+        "PC7": 0.021443663980282354,
+        "PC8": 0.08515635970073382,
+        "PC9": 0.0746544404040322,
+        "PC10": 0.060143801039125235,
+        "PC11": 0.006077804429220795,
+        "PC12": 0.013155193818706681,
+        "PC13": 0.07133795317830471,
+        "PC14": 0.017333019065539267,
+        "PC15": 0.023703464409612802,
+        "PC16": 0.02470122345207749
+      },
+      "top_components": [
+        "PC4",
+        "PC1",
+        "PC5",
+        "PC8",
+        "PC3"
+      ],
+      "top20_features": [
+        {
+          "feature": "Fwd PSH Flags",
+          "importance": 0.023653
+        },
+        {
+          "feature": "SYN Flag Count",
+          "importance": 0.023653
+        },
+        {
+          "feature": "Flow Packets/s",
+          "importance": 0.023151
+        },
+        {
+          "feature": "Fwd Packets/s",
+          "importance": 0.022546
+        },
+        {
+          "feature": "PSH Flag Count",
+          "importance": 0.022546
+        },
+        {
+          "feature": "Active Mean",
+          "importance": 0.021511
+        },
+        {
+          "feature": "Min Packet Length",
+          "importance": 0.021151
+        },
+        {
+          "feature": "Bwd IAT Total",
+          "importance": 0.021047
+        },
+        {
+          "feature": "Fwd Packet Length Max",
+          "importance": 0.020835
+        },
+        {
+          "feature": "Destination Port",
+          "importance": 0.020814
+        },
+        {
+          "feature": "Active Max",
+          "importance": 0.020739
+        },
+        {
+          "feature": "Fwd Packet Length Std",
+          "importance": 0.020673
+        },
+        {
+          "feature": "Bwd Packet Length Min",
+          "importance": 0.020632
+        },
+        {
+          "feature": "Bwd IAT Std",
+          "importance": 0.02036
+        },
+        {
+          "feature": "Fwd Packet Length Mean",
+          "importance": 0.01991
+        },
+        {
+          "feature": "Avg Fwd Segment Size",
+          "importance": 0.01991
+        },
+        {
+          "feature": "Bwd IAT Min",
+          "importance": 0.019907
+        },
+        {
+          "feature": "URG Flag Count",
+          "importance": 0.019771
+        },
+        {
+          "feature": "Bwd IAT Max",
+          "importance": 0.018944
+        },
+        {
+          "feature": "Fwd IAT Min",
+          "importance": 0.018942
+        }
+      ],
+      "top5_features": [
+        {
+          "rank": 1,
+          "feature": "Fwd PSH Flags",
+          "importance": 0.023653,
+          "matches_reference_list": true
+        },
+        {
+          "rank": 2,
+          "feature": "SYN Flag Count",
+          "importance": 0.023653,
+          "matches_reference_list": true
+        },
+        {
+          "rank": 3,
+          "feature": "Flow Packets/s",
+          "importance": 0.023151,
+          "matches_reference_list": true
+        },
+        {
+          "rank": 4,
+          "feature": "Fwd Packets/s",
+          "importance": 0.022546,
+          "matches_reference_list": true
+        },
+        {
+          "rank": 5,
+          "feature": "PSH Flag Count",
+          "importance": 0.022546,
+          "matches_reference_list": true
+        }
+      ],
+      "reference_list_hits": 5,
+      "h3_verdict": true,
+      "h3_note": "Set h3_verdict to true or false after reviewing the top-5 against domain expectation. reference_list_hits is an indicator, not the test: every CICIDS2017 column is a network feature, so the hypothesis should ask whether these are the features an analyst would expect to discriminate attacks."
+    },
+    "supported": null
+  },
+  "H4": {
+    "hypothesis": "H4: QAE reaches AUROC >= 0.85 without attack labels",
+    "auroc": 0.8876,
+    "benign_mean_error": 0.01736602745950222,
+    "attack_mean_error": 0.09942496567964554,
+    "separation_ratio": 5.73,
+    "supported": true
+  }
+}
