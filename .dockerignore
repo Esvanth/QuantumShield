@@ -1,0 +1,26 @@
+# Keep the image small. The API needs the fitted transforms, the model
+# checkpoints and the evaluation JSON. It does not need the datasets.
+
+data/raw/
+**/*.npy
+**/*.csv
+
+results/figures/
+results/shap_plots/
+*_backup*/
+QS_backup*/
+
+.git/
+.venv/
+venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Keep: data/processed/*/scaler.pkl, data/processed/*/pca.pkl
+# Keep: results/*_hypotheses.json, results/shap_summary.json
+!data/processed/**/scaler.pkl
+!data/processed/**/pca.pkl
+!results/*_hypotheses.json
+!results/shap_summary.json

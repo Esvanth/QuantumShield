@@ -201,11 +201,9 @@ def build_pipeline(
         random_state=random_state,
     )
     log.info("Split — train: %d | val: %d | test: %d", len(X_train), len(X_val), len(X_test))
-
     X_train_pca, X_val_pca, X_test_pca, scaler, pca = scale_and_reduce(
         X_train, X_val, X_test, n_components=n_components
     )
-
     np.save(os.path.join(out_dir, "X_train.npy"), X_train_pca)
     np.save(os.path.join(out_dir, "X_val.npy"),   X_val_pca)
     np.save(os.path.join(out_dir, "X_test.npy"),  X_test_pca)
@@ -216,7 +214,6 @@ def build_pipeline(
     np.save(os.path.join(out_dir, "ym_val.npy"),   ym_val)
     np.save(os.path.join(out_dir, "ym_test.npy"),  ym_test)
     np.save(os.path.join(out_dir, "class_names.npy"), np.array(class_names))
-
     with open(os.path.join(out_dir, "scaler.pkl"), "wb") as f:
         pickle.dump(scaler, f)
     with open(os.path.join(out_dir, "pca.pkl"), "wb") as f:
@@ -224,12 +221,9 @@ def build_pipeline(
 
     log.info("Saved processed data to %s", out_dir)
     return X_train_pca, X_val_pca, X_test_pca, yb_train, yb_val, yb_test, class_names
-
-
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
-
 if __name__ == "__main__":
     print("=== Preprocessing CICIDS2017 ===")
     build_pipeline(
@@ -238,11 +232,9 @@ if __name__ == "__main__":
         data_dir="data/raw/cicids2017",
         label_col="Label",
     )
-
     print("\n=== Preprocessing CICIoT2023 ===")
     build_pipeline(
         dataset_name="ciciot2023",
         load_fn=load_ciciot2023,
         data_dir="data/raw/ciciot2023",
-        label_col="Label",
-    )
+        label_col="Label",)
