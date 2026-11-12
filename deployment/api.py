@@ -6,10 +6,20 @@ four models, the same validation-fitted weights, and the same decision
 threshold. Those come from results/<dataset>_hypotheses.json rather than being
 hardcoded, so the deployed system cannot drift away from the reported metrics.
 
+RQ2 abstention: when the spread between the four member probabilities exceeds
+TAU_ABSTAIN, the API returns ABSTAIN rather than a binary decision. Thresholds
+are per-dataset and come from abstention.py.
+
+Every classification is persisted to DynamoDB so the system keeps a detection
+history rather than computing and forgetting. Writes are best effort: if
+DynamoDB is unreachable the prediction is still returned.
+
 Endpoints:
+  GET  /                landing page listing the service
   GET  /health          liveness, plus what is actually loaded
   GET  /metrics         the reported test metrics for the loaded dataset
   GET  /explain         global SHAP feature importance, real network features
+  GET  /recent          recent classifications from DynamoDB
   POST /predict         classify one flow
   POST /predict/batch   classify many flows
 
@@ -26,9 +36,13 @@ import os
 import json
 import pickle
 import logging
+from decimal import Decimal
+from datetime import datetime, timezone
 
 import numpy as np
 import torch
+import boto3
+from boto3.dynamodb.conditions import Key
 from flask import Flask, request, jsonify
 
 from models.classical.dnn import DNN
@@ -44,6 +58,13 @@ app = Flask(__name__)
 DATASET = os.environ.get("DATASET", "cicids2017")
 PROC_DIR = os.path.join("data", "processed", DATASET)
 MODEL_ORDER = ["DNN", "CNN-1D", "LSTM", "HybridQNN"]
+
+# Abstention thresholds from abstention.py (RQ2).
+# When spread of member probabilities exceeds TAU_ABSTAIN, return ABSTAIN.
+TAU_ABSTAIN = {
+    "cicids2017": 0.07,
+    "ciciot2023": 0.05,
+}
 
 CHECKPOINTS = {
     "DNN": "models/classical/dnn_weights.pth",
@@ -64,7 +85,6 @@ STATE = {
     "metrics": None,
     "n_raw_features": None,
 }
-
 
 # ---------------------------------------------------------------------------
 # Startup
@@ -123,7 +143,65 @@ def load_resources():
         STATE["threshold"] = 0.5
 
     STATE["ready"] = True
-    log.info("QuantumShield API ready on dataset '%s'", DATASET)
+    log.info("QuantumShield API ready on dataset '%s' with tau_abstain=%.3f",
+             DATASET, TAU_ABSTAIN.get(DATASET, 0.07))
+
+
+# ---------------------------------------------------------------------------
+# Detection history, DynamoDB
+# ---------------------------------------------------------------------------
+
+DDB_TABLE = os.environ.get("DDB_TABLE", "quantumshield-predictions")
+DDB_REGION = os.environ.get("AWS_REGION", "eu-west-1")
+_table = None
+
+
+def ddb_table():
+    """
+    Lazy so the API still starts when DynamoDB is unreachable. Credentials come
+    from the instance's IAM role, so nothing is stored in the image.
+    """
+    global _table
+    if _table is None:
+        _table = boto3.resource("dynamodb", region_name=DDB_REGION).Table(DDB_TABLE)
+    return _table
+
+
+def log_prediction(record):
+    """
+    Persist one classification. Partitioned by day and sorted by timestamp, so
+    a day's detections can be read back in order without scanning the table.
+
+    Best effort by design: a logging failure must never break a prediction.
+    DynamoDB rejects Python floats, hence Decimal(str(x)).
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        ddb_table().put_item(Item={
+            "day": now.strftime("%Y-%m-%d"),
+            "ts": now.isoformat(),
+            "dataset": DATASET,
+            "prediction": record["prediction"],
+            "label": record["label"],
+            "attack_probability": Decimal(str(record["attack_probability"])),
+            "threshold": Decimal(str(record["threshold"])),
+            "spread": Decimal(str(record["spread"])),
+            "tau_abstain": Decimal(str(record["tau_abstain"])),
+            "per_model": {k: Decimal(str(v)) for k, v in record["per_model"].items()},
+        })
+    except Exception:
+        log.warning("could not write prediction to DynamoDB", exc_info=True)
+
+
+def jsonable(obj):
+    """DynamoDB returns Decimal, which the JSON encoder refuses."""
+    if isinstance(obj, list):
+        return [jsonable(o) for o in obj]
+    if isinstance(obj, dict):
+        return {k: jsonable(v) for k, v in obj.items()}
+    if isinstance(obj, Decimal):
+        return float(obj)
+    return obj
 
 
 # ---------------------------------------------------------------------------
@@ -167,25 +245,64 @@ def attack_probability(X):
 
 
 def classify(rows):
+    """
+    Classify one or more flows. Applies the RQ2 abstention rule: if the spread
+    of member probabilities exceeds TAU_ABSTAIN for the loaded dataset, return
+    ABSTAIN rather than ATTACK or BENIGN.
+    """
     X = to_components(rows)
     p_attack, per_model = attack_probability(X)
     thr = STATE["threshold"]
+    tau_abstain = float(TAU_ABSTAIN.get(DATASET, 0.07))
 
     out = []
     for i, p in enumerate(p_attack):
-        out.append({
-            "prediction": "ATTACK" if p >= thr else "BENIGN",
-            "label": int(p >= thr),
+        member_probs = [float(per_model[n][i]) for n in MODEL_ORDER]
+        spread = float(max(member_probs) - min(member_probs))
+
+        # RQ2 abstention: refuse when members disagree too much
+        if spread > tau_abstain:
+            prediction, label = "ABSTAIN", -1
+        elif p >= thr:
+            prediction, label = "ATTACK", 1
+        else:
+            prediction, label = "BENIGN", 0
+
+        record = {
+            "prediction": prediction,
+            "label": label,
             "attack_probability": round(float(p), 6),
             "threshold": thr,
+            "spread": round(spread, 6),
+            "tau_abstain": tau_abstain,
             "per_model": {n: round(float(per_model[n][i]), 6) for n in MODEL_ORDER},
-        })
+        }
+        log_prediction(record)
+        out.append(record)
     return out
 
 
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
+@app.route("/", methods=["GET"])
+def index():
+    """Landing route, so the base URL lists the service rather than 404ing."""
+    return jsonify({
+        "service": "QuantumShield",
+        "description": "Hybrid quantum-classical intrusion detection with SHAP explainability and spread-based abstention",
+        "dataset": DATASET,
+        "endpoints": {
+            "GET /health": "liveness and loaded configuration",
+            "GET /metrics": "reported test metrics",
+            "GET /explain": "global SHAP feature importance",
+            "GET /recent": "recent classifications, ?n=50&day=YYYY-MM-DD",
+            "POST /predict": "classify one flow",
+            "POST /predict/batch": "classify many flows",
+        },
+    }), 200
+
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -202,6 +319,7 @@ def health():
         "models": MODEL_ORDER,
         "ensemble_weights": STATE["raw_weights"],
         "decision_threshold": STATE["threshold"],
+        "tau_abstain": float(TAU_ABSTAIN.get(DATASET, 0.07)),
         "expects": {
             "raw_features": STATE["n_raw_features"],
             "or_pca_components": N_FEATURES,
@@ -237,6 +355,45 @@ def explain():
     }), 200
 
 
+@app.route("/recent", methods=["GET"])
+def recent():
+    """
+    Recent classifications for one day, newest first. The dashboard's live feed
+    reads this. Querying one partition rather than scanning the table is why
+    the key is day plus timestamp. Counts ATTACK, BENIGN and ABSTAIN
+    separately so the dashboard can show all three.
+    """
+    try:
+        n = min(int(request.args.get("n", 50)), 500)
+    except ValueError:
+        return jsonify({"error": "n must be an integer"}), 400
+
+    day = request.args.get("day") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    try:
+        resp = ddb_table().query(
+            KeyConditionExpression=Key("day").eq(day),
+            ScanIndexForward=False,
+            Limit=n,
+        )
+    except Exception as exc:
+        log.exception("could not read detection history")
+        return jsonify({"error": str(exc)}), 503
+
+    items = jsonable(resp.get("Items", []))
+    attacks = sum(1 for it in items if it.get("label") == 1)
+    benign = sum(1 for it in items if it.get("label") == 0)
+    abstain = sum(1 for it in items if it.get("label") == -1)
+    return jsonify({
+        "day": day,
+        "count": len(items),
+        "attacks": attacks,
+        "benign": benign,
+        "abstain": abstain,
+        "items": items,
+    }), 200
+
+
 @app.route("/predict", methods=["POST"])
 def predict():
     try:
@@ -265,11 +422,14 @@ def predict_batch():
             return jsonify({"error": "batch limit is 10000 rows"}), 413
 
         results = classify(rows)
-        n_attack = sum(r["label"] for r in results)
+        n_attack = sum(1 for r in results if r["label"] == 1)
+        n_benign = sum(1 for r in results if r["label"] == 0)
+        n_abstain = sum(1 for r in results if r["label"] == -1)
         return jsonify({
             "count": len(results),
             "attacks": n_attack,
-            "benign": len(results) - n_attack,
+            "benign": n_benign,
+            "abstain": n_abstain,
             "results": results,
         }), 200
     except ValueError as exc:

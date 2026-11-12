@@ -18,6 +18,15 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 
+# Secrets must never reach the image
+.env
+*.env
+.env.*
+
+# Not needed at runtime
+tests/
+*.ipynb
+
 # Keep: data/processed/*/scaler.pkl, data/processed/*/pca.pkl
 # Keep: results/*_hypotheses.json, results/shap_summary.json
 !data/processed/**/scaler.pkl

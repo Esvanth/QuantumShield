@@ -48,3 +48,21 @@ ibm_token.txt
 
 # No numpy arrays anywhere. Large, binary, and all regenerable.
 **/*.npy
+# AWS credentials and EC2 keys
+.aws/
+credentials
+*.pem
+*.ppk
+aws_config.json
+
+# Keras / TensorFlow weights (yours are .h5, not .pth)
+*.h5
+*.keras
+*.hdf5
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Docker tar backups
+*.tar
+*.tar.gz

@@ -1,0 +1,15 @@
+{
+  "tau_abstain": 0.07,
+  "coverage": 0.8183615430969774,
+  "baseline_accuracy": 0.984332216219645,
+  "accepted_accuracy": 0.9995284725093013,
+  "accuracy_lift": 0.015196256289656374,
+  "baseline_f1": 0.9537756152334612,
+  "accepted_f1": 0.9984567574995243,
+  "H5_mannwhitney": {
+    "u": 2067025575.0,
+    "p_value": 0.0,
+    "wrong_spread_mean": 0.353678435087204,
+    "right_spread_mean": 0.06143522635102272
+  }
+}

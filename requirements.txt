@@ -38,3 +38,6 @@ seaborn==0.13.2
 # Utilities
 tqdm==4.66.1
 requests==2.31.0
+autoray==0.6.12
+boto3==1.34.162
+plotly==5.24.1
