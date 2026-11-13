@@ -4,10 +4,12 @@ QuantumShield - detection console.
 Three views over the deployed system.
 
   Live detection   classify one flow and see how each ensemble member voted,
-                   with the dataset's own label alongside the verdict.
+                   with the dataset's own label alongside the verdict. ABSTAIN
+                   appears when member disagreement exceeds tau_abstain.
   Batch run        push a stream of real test flows through the API and watch
                    running accuracy, a decision timeline and a confusion
-                   matrix build up as they land.
+                   matrix build up as they land. Abstained flows are counted
+                   separately and excluded from accuracy.
   Evaluation       the hypothesis outcomes, charts built from the recorded
                    metrics, and every figure written to results/.
 
@@ -15,11 +17,6 @@ Run from the project root so results/ and data/ are alongside:
 
     $env:QS_API = "http://3.254.138.3:5000"
     streamlit run deployment/dashboard.py
-
-On the instance, where the repo is baked into the image:
-
-    nohup streamlit run dashboard.py --server.port 8501 \
-        --server.address 0.0.0.0 > streamlit.log 2>&1 &
 
 QS_RESULTS and QS_DATA override the figure and test-set locations.
 """
@@ -35,15 +32,13 @@ import requests
 import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
-
+API_URL=st.secrets.get("API_URL","http://localhsot:5000")
 API = os.environ.get("QS_API", "http://localhost:5000")
 RESULTS_DIR = os.environ.get("QS_RESULTS", "results")
 DATA_DIR = os.environ.get("QS_DATA", os.path.join("data", "processed"))
 
 MODEL_ORDER = ["DNN", "CNN-1D", "LSTM", "HybridQNN"]
 
-# Okabe-Ito, ordered so no weak colour-vision pair sits adjacent.
-# Validated: CVD separation dE 11.4, normal-vision floor 18.7.
 SERIES = {
     "DNN":       "#0072B2",
     "CNN-1D":    "#009E73",
@@ -52,6 +47,7 @@ SERIES = {
 }
 ATTACK = "#D55E00"
 BENIGN = "#009E73"
+ABSTAIN_C = "#6B7280"
 INK = "#141a20"
 MUTED = "#5a6472"
 RULE = "#dce1e7"
@@ -59,12 +55,6 @@ RULE = "#dce1e7"
 st.set_page_config(page_title="QuantumShield", layout="wide",
                    initial_sidebar_state="collapsed")
 
-
-# Streamlit added st.fragment in 1.33, and before that it was
-# st.experimental_fragment (1.31 to 1.32). The live-refresh panels use it. On
-# older Streamlit the shim below degrades to a one-shot render so the file
-# still loads, and the LIVE badges fall back to a manual refresh button. Run
-# `pip install --upgrade streamlit` to turn auto-refresh on.
 if hasattr(st, "fragment"):
     live_fragment = st.fragment
     LIVE_ENABLED = True
@@ -78,14 +68,6 @@ else:
         return wrap
     LIVE_ENABLED = False
 
-
-# ---------------------------------------------------------------------------
-# Streamlit compatibility
-#
-# st.image only accepted use_container_width from 1.41; before that the
-# argument was use_column_width. The instance and the laptop are not always on
-# the same version, so ask rather than assume.
-# ---------------------------------------------------------------------------
 
 def show_image(path):
     try:
@@ -106,10 +88,6 @@ def show_chart(fig, key=None):
                     config={"displayModeBar": False}, key=key)
 
 
-# ---------------------------------------------------------------------------
-# Presentation layer
-# ---------------------------------------------------------------------------
-
 CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
@@ -123,6 +101,7 @@ CSS = """
   --rule-firm:#b9c2cc;
   --attack:   #d55e00;
   --benign:   #009e73;
+  --abstain:  #6b7280;
   --quantum:  #cc79a7;
 }
 
@@ -135,7 +114,6 @@ html, body, [class*="st-"], .stMarkdown, button, input, textarea {
 .stApp { background: var(--ground); }
 .block-container { padding-top: 1.4rem; padding-bottom: 3rem; max-width: 1420px; }
 
-/* ---- masthead ---------------------------------------------------------- */
 .mast {
   display: flex; align-items: baseline; gap: 1.1rem; flex-wrap: wrap;
   border-bottom: 2px solid var(--ink);
@@ -161,7 +139,6 @@ html, body, [class*="st-"], .stMarkdown, button, input, textarea {
 }
 .mast .down::before { background: var(--attack); }
 
-/* ---- headline figures -------------------------------------------------- */
 .kpiband {
   display: grid; grid-template-columns: repeat(5, 1fr);
   border: 1px solid var(--rule); border-top: none;
@@ -202,7 +179,6 @@ html, body, [class*="st-"], .stMarkdown, button, input, textarea {
   vertical-align: middle; animation: qs-pulse 2.4s ease-out infinite;
 }
 
-/* ---- tabs -------------------------------------------------------------- */
 .stTabs [data-baseweb="tab-list"] {
   gap: 1.7rem; border-bottom: 1px solid var(--rule); margin-bottom: 1.2rem;
 }
@@ -213,7 +189,6 @@ html, body, [class*="st-"], .stMarkdown, button, input, textarea {
 .stTabs [aria-selected="true"] { color: var(--ink); font-weight: 600; }
 .stTabs [data-baseweb="tab-border"] { display: none; }
 
-/* ---- panels ------------------------------------------------------------ */
 .panel {
   background: var(--panel); border: 1px solid var(--rule);
   padding: 1.05rem 1.25rem 1.15rem;
@@ -233,7 +208,6 @@ html, body, [class*="st-"], .stMarkdown, button, input, textarea {
 .caphead b { font-size: .8rem; font-weight: 600; color: var(--ink); }
 .caphead span { font-size: .72rem; color: var(--muted); }
 
-/* ---- the flow under test ----------------------------------------------- */
 .specimen {
   border: 1px solid var(--rule-firm); background: #fbfcfd;
   padding: .7rem .85rem; margin: .55rem 0 .6rem;
@@ -243,7 +217,6 @@ html, body, [class*="st-"], .stMarkdown, button, input, textarea {
 }
 .specimen .truth { font-size: .73rem; color: var(--muted); margin-top: .2rem; }
 
-/* ---- the verdict readout ----------------------------------------------- */
 .readout {
   border: 1px solid var(--rule); background: var(--panel);
   padding: 1.15rem 1.3rem 1.3rem;
@@ -297,7 +270,6 @@ html, body, [class*="st-"], .stMarkdown, button, input, textarea {
 .empty { color: var(--muted); font-size: .84rem; padding: 2.6rem 1rem; text-align: center;
          border: 1px dashed var(--rule-firm); line-height: 1.6; }
 
-/* ---- counters ---------------------------------------------------------- */
 .counts { display: flex; gap: 2.1rem; flex-wrap: wrap; margin-bottom: .2rem; }
 .counts div span {
   display: block; font-family: 'IBM Plex Mono', monospace; font-size: 1.45rem;
@@ -305,7 +277,6 @@ html, body, [class*="st-"], .stMarkdown, button, input, textarea {
 }
 .counts div small { font-size: .71rem; color: var(--muted); }
 
-/* ---- section bands ----------------------------------------------------- */
 .secthead {
   border-top: 2px solid var(--ink); padding-top: .5rem;
   margin: 1.8rem 0 .9rem; display: flex; align-items: baseline;
@@ -342,7 +313,6 @@ html, body, [class*="st-"], .stMarkdown, button, input, textarea {
 .tag.yes { color: var(--benign); border-color: var(--benign); }
 .tag.no  { color: var(--attack); border-color: var(--attack); }
 
-/* ---- streamlit widget tidying ------------------------------------------ */
 .stTextArea textarea {
   font-family: 'IBM Plex Mono', monospace !important; font-size: .76rem !important;
   background: #fbfcfd !important; border-color: var(--rule) !important;
@@ -364,10 +334,6 @@ html, body, [class*="st-"], .stMarkdown, button, input, textarea {
 """
 st.markdown(CSS, unsafe_allow_html=True)
 
-
-# ---------------------------------------------------------------------------
-# API helpers. None of these raise into the UI.
-# ---------------------------------------------------------------------------
 
 def api_get(path, **params):
     try:
@@ -392,10 +358,6 @@ def api_post(path, payload):
 def classify(values):
     return api_post("/predict", {"features": [float(v) for v in values]})
 
-
-# ---------------------------------------------------------------------------
-# Disk: the held-out test set, the recorded metrics, the figures
-# ---------------------------------------------------------------------------
 
 @st.cache_data(show_spinner=False)
 def load_test_set(dataset, n_components):
@@ -425,7 +387,6 @@ def load_hypotheses(root):
 
 
 def metric_frame(payload):
-    """per_model dict -> tidy frame of whatever numeric fields are present."""
     per_model = payload.get("per_model")
     if not isinstance(per_model, dict):
         return None
@@ -463,6 +424,8 @@ SECTIONS = [
     ("Statistical testing",   ("mcnemar", "significance", "pvalue", "p_value",
                                "hypothes", "test")),
     ("Calibration",           ("calibration", "reliability", "brier", "ece")),
+    ("Noise robustness",      ("noise", "depolarising", "depolarizing")),
+    ("Abstention",            ("abstention", "abstain", "spread")),
 ]
 
 ACRONYMS = {
@@ -501,10 +464,6 @@ def discover_figures(root):
     return {k: v for k, v in grouped.items() if v}, len(paths)
 
 
-# ---------------------------------------------------------------------------
-# Chart furniture, so every plot in the console reads as one system
-# ---------------------------------------------------------------------------
-
 def style(fig, height=300, right=12, top=10, left=0, bottom=0):
     fig.update_layout(
         height=height, margin=dict(l=left, r=right, t=top, b=bottom),
@@ -521,7 +480,6 @@ def style(fig, height=300, right=12, top=10, left=0, bottom=0):
 
 
 def ranked_bars(labels, values, colour="#0072B2", fmt="{:.4f}", height=330):
-    """Horizontal ranking, biggest at top, every bar labelled with its value."""
     fig = go.Figure(go.Bar(
         x=values[::-1], y=labels[::-1], orientation="h",
         marker=dict(color=colour, line=dict(color="#ffffff", width=2)),
@@ -538,12 +496,6 @@ def ranked_bars(labels, values, colour="#0072B2", fmt="{:.4f}", height=330):
 
 
 def dot_ranking(labels, values, height=300, fmt="{:.4f}"):
-    """
-    For metrics bunched near 1.0, where a bar chart from zero renders every
-    model the same length. A dot carries no length-from-zero reading, so the
-    axis can be zoomed onto the spread without misleading anyone. The axis
-    labels stay on, and the caption says the scale is zoomed.
-    """
     lo, hi = min(values), max(values)
     span = max(hi - lo, 1e-6)
     x0, x1 = lo - span * 0.4, hi + span * 0.5
@@ -556,7 +508,6 @@ def dot_ranking(labels, values, height=300, fmt="{:.4f}"):
         x=values[::-1], y=labels[::-1], mode="markers+text",
         marker=dict(size=13, color="#0072B2",
                     line=dict(color="#ffffff", width=2)),
-        # Leading space keeps the label clear of the marker's white halo.
         text=[" " + fmt.format(v) for v in values[::-1]],
         textposition="middle right",
         textfont=dict(family="IBM Plex Mono", size=11, color=INK),
@@ -570,14 +521,11 @@ def dot_ranking(labels, values, height=300, fmt="{:.4f}"):
 
 
 def confusion_fig(tp, fp, fn, tn, height=260):
-    """Predicted across, actual down. Counts drawn on the cells."""
     z = [[tn, fp], [fn, tp]]
     peak = max(1, max(max(r) for r in z))
     fig = go.Figure(go.Heatmap(
         z=z, x=["predicted benign", "predicted attack"],
         y=["actual benign", "actual attack"],
-        # Not pure white at the floor, or an empty cell disappears into the
-        # panel and the matrix stops reading as a grid.
         colorscale=[[0, "#eef2f6"], [1, "#0072B2"]], zmin=0, zmax=peak,
         showscale=False, xgap=3, ygap=3,
         hovertemplate="%{y}, %{x}<br>%{z} flows<extra></extra>",
@@ -595,7 +543,6 @@ def confusion_fig(tp, fp, fn, tn, height=260):
 
 
 def timeline_fig(frame, threshold, height=300):
-    """Each classified flow against the threshold, marked right or wrong."""
     fig = go.Figure()
     fig.add_hrect(y0=threshold, y1=1.02, fillcolor=ATTACK, opacity=0.045,
                   line_width=0)
@@ -622,6 +569,20 @@ def timeline_fig(frame, threshold, height=300):
                            "<br>called %{customdata[0]}"
                            "<br>actually %{customdata[1]}<extra></extra>"),
         ))
+
+    # Mark abstained flows in grey
+    if "verdict" in frame.columns:
+        abstained = frame[frame["verdict"] == "ABSTAIN"]
+        if not abstained.empty:
+            fig.add_trace(go.Scatter(
+                x=abstained["n"], y=abstained["p"], mode="markers",
+                name="abstain",
+                marker=dict(size=10, color=ABSTAIN_C,
+                            line=dict(color="#fff", width=1), symbol="x"),
+                hovertemplate="flow %{x}<br>P(attack) %{y:.4f}<br>"
+                              "ABSTAIN<extra></extra>",
+            ))
+
     style(fig, height=height, left=4, top=18)
     fig.update_xaxes(title_text="flow, in the order sent",
                      title_font=dict(size=10, color=MUTED))
@@ -631,7 +592,7 @@ def timeline_fig(frame, threshold, height=300):
 
 
 # ---------------------------------------------------------------------------
-# Masthead and headline figures
+# Masthead and KPI band
 # ---------------------------------------------------------------------------
 
 health, health_err = api_get("/health")
@@ -641,17 +602,20 @@ if health:
     weights = health["ensemble_weights"]
     dataset = health["dataset"]
     n_components = int(health["expects"]["or_pca_components"])
+    tau_abstain_default = float(health.get("tau_abstain", 0.07))
     status = (f'<span class="live">serving</span>'
               f'<span>corpus <b>{dataset}</b></span>'
-              f'<span>threshold <b>{threshold:.3f}</b></span>')
+              f'<span>threshold <b>{threshold:.3f}</b></span>'
+              f'<span>tau_abstain <b>{tau_abstain_default:.3f}</b></span>')
 else:
     threshold, weights = 0.5, {m: 1 for m in MODEL_ORDER}
     dataset, n_components = "cicids2017", 16
+    tau_abstain_default = 0.07
     status = '<span class="live down">service unreachable</span>'
 
 st.markdown(
     f'<div class="mast"><h1>QuantumShield</h1>'
-    f'<span class="sub">hybrid quantum-classical intrusion detection</span>'
+    f'<span class="sub">hybrid quantum-classical intrusion detection with abstention</span>'
     f'<span class="right">{status}</span></div>',
     unsafe_allow_html=True,
 )
@@ -661,7 +625,6 @@ primary = hypotheses.get(dataset) or (next(iter(hypotheses.values()))
                                       if hypotheses else None)
 metrics = metric_frame(primary) if primary else None
 
-# The report-evidence tiles are fixed once the metrics are read.
 _static_tiles = []
 if metrics is not None:
     f1_col = pick(metrics, "f1", "f1_score", "f1score")
@@ -694,11 +657,6 @@ if metrics is not None:
                     f"{heaviest['model']} at {heaviest[par_col]:,.0f}"))
 
 
-# This band and the detection-history panel below are Streamlit fragments:
-# they re-run on their own schedule without touching the rest of the page,
-# so flows landing in DynamoDB from any client show up here without anyone
-# clicking refresh, and whatever the user was typing or picking elsewhere
-# stays put.
 @live_fragment(run_every="4s")
 def kpi_band():
     today, _ = api_get(
@@ -726,15 +684,23 @@ tab_live, tab_batch, tab_eval = st.tabs(
 
 
 # ---------------------------------------------------------------------------
-# Shared: the verdict readout
+# Shared: the verdict readout (with ABSTAIN handling)
 # ---------------------------------------------------------------------------
 
 def vote_readout(result, truth=None):
     p = float(result["attack_probability"])
     verdict = result["prediction"]
-    colour = ATTACK if verdict == "ATTACK" else BENIGN
     per_model = result["per_model"]
     probs = [float(per_model[m]) for m in MODEL_ORDER]
+    spread = float(result.get("spread", max(probs) - min(probs)))
+    tau_abstain = float(result.get("tau_abstain", tau_abstain_default))
+
+    if verdict == "ABSTAIN":
+        colour = ABSTAIN_C
+    elif verdict == "ATTACK":
+        colour = ATTACK
+    else:
+        colour = BENIGN
 
     rows = "".join(
         f'<div class="row">'
@@ -751,21 +717,30 @@ def vote_readout(result, truth=None):
 
     scored = ""
     if truth in ("ATTACK", "BENIGN"):
-        hit = truth == verdict
-        scored = (f'<div class="scored {"hit" if hit else "miss"}">'
-                  f'Ground truth is <b>{truth}</b>. The ensemble '
-                  f'{"agrees" if hit else "is wrong on this flow"}.</div>')
+        if verdict == "ABSTAIN":
+            scored = (f'<div class="scored">Ground truth is <b>{truth}</b>. '
+                      f'The ensemble abstained rather than choose, which is '
+                      f'the correct behaviour under RQ2 when members disagree.'
+                      f'</div>')
+        else:
+            hit = truth == verdict
+            scored = (f'<div class="scored {"hit" if hit else "miss"}">'
+                      f'Ground truth is <b>{truth}</b>. The ensemble '
+                      f'{"agrees" if hit else "is wrong on this flow"}.</div>')
 
-    # How far apart the members are is the interesting signal: a verdict the
-    # weights had to resolve is weaker evidence than one they all agreed on.
     voting_attack = sum(v >= threshold for v in probs)
-    if voting_attack in (0, len(probs)):
+    if verdict == "ABSTAIN":
+        agreement = (f'Member spread <b>{spread:.4f}</b> exceeds tau_abstain '
+                     f'<b>{tau_abstain:.3f}</b>, so the ensemble declined to '
+                     f'classify. This is the RQ2 abstention mechanism in '
+                     f'action.')
+    elif voting_attack in (0, len(probs)):
         agreement = (f'All four models agree, with a spread of '
-                     f'<b>{max(probs) - min(probs):.4f}</b>.')
+                     f'<b>{spread:.4f}</b>.')
     else:
         agreement = (f'<b>{voting_attack} of 4</b> models crossed the threshold, '
                      f'so the weights decided this verdict. Spread '
-                     f'<b>{max(probs) - min(probs):.4f}</b>.')
+                     f'<b>{spread:.4f}</b>.')
 
     st.markdown(
         f'<div class="readout">'
@@ -813,16 +788,13 @@ with tab_live:
             st.markdown(
                 '<div class="panel tight"><h2>Choose a flow to classify</h2>'
                 '<p class="note">The models run on the server; this console '
-                'only sends and displays.</p></div>',
+                'only sends and displays. ABSTAIN is returned when members '
+                'disagree too much to decide.</p></div>',
                 unsafe_allow_html=True)
 
             modes = ["Test set", "CSV file", "Type values"]
             if X_test is None:
                 modes = ["CSV file", "Type values"]
-            # Every widget on this tab is explicitly keyed. Without the keys,
-            # Streamlit tracks them by their position in the script, and
-            # buttons from the other branches of this if/elif/else leak into
-            # the active branch when the mode switches.
             mode = st.radio("Source", modes, horizontal=True,
                             key="src_mode", label_visibility="collapsed")
 
@@ -892,7 +864,9 @@ with tab_live:
                             if out:
                                 rec = {"row": n, "verdict": out["prediction"],
                                        "P(attack)": round(
-                                           float(out["attack_probability"]), 6)}
+                                           float(out["attack_probability"]), 6),
+                                       "spread": round(
+                                           float(out.get("spread", 0)), 4)}
                                 for m in MODEL_ORDER:
                                     rec[m] = round(float(out["per_model"][m]), 4)
                                 if labels is not None and n < len(labels):
@@ -949,27 +923,33 @@ with tab_live:
             elif batch:
                 frame = pd.DataFrame(batch)
                 n_attack = int((frame["verdict"] == "ATTACK").sum())
+                n_abstain = int((frame["verdict"] == "ABSTAIN").sum())
+                n_benign = len(frame) - n_attack - n_abstain
                 scored = ""
                 if "actual" in frame.columns:
-                    correct = int((frame["verdict"] == frame["actual"]).sum())
-                    scored = (f'<div><span>{correct}/{len(frame)}</span>'
-                              f'<small>correct</small></div>')
+                    decided = frame[frame["verdict"] != "ABSTAIN"]
+                    if len(decided):
+                        correct = int((decided["verdict"] == decided["actual"]).sum())
+                        scored = (f'<div><span>{correct}/{len(decided)}</span>'
+                                  f'<small>decided correctly</small></div>')
                 st.markdown(
                     f'<div class="readout"><div class="counts">'
                     f'<div><span>{len(frame)}</span><small>classified</small></div>'
                     f'<div><span style="color:{ATTACK}">{n_attack}</span>'
                     f'<small>attack</small></div>'
                     f'<div><span style="color:{BENIGN}">'
-                    f'{len(frame) - n_attack}</span><small>benign</small></div>'
+                    f'{n_benign}</span><small>benign</small></div>'
+                    f'<div><span style="color:{ABSTAIN_C}">{n_abstain}</span>'
+                    f'<small>abstain</small></div>'
                     f'{scored}</div></div>', unsafe_allow_html=True)
                 show_table(frame)
             else:
                 st.markdown(
                     '<div class="readout"><div class="empty">'
                     'Pick a flow on the left and classify it.<br>'
-                    'The verdict, each model\'s independent vote and the '
-                    'dataset\'s own label appear here.</div></div>',
-                    unsafe_allow_html=True)
+                    'The verdict (ATTACK, BENIGN or ABSTAIN), each model\'s '
+                    'independent vote and the dataset\'s own label appear here.'
+                    '</div></div>', unsafe_allow_html=True)
 
         st.write("")
         lower_l, lower_r = st.columns([1, 1.12], gap="medium")
@@ -998,14 +978,12 @@ with tab_live:
                 '<div class="panel tight"><h2>Detection history <span '
                 'class="livedot">live</span></h2>'
                 '<p class="note">Every classification is written to DynamoDB, '
-                'partitioned by day and sorted by time, so a day reads back '
-                'in one query. This panel polls the service every four '
-                'seconds, so flows landing from any client appear here '
-                'without anyone clicking refresh.</p></div>',
+                'partitioned by day and sorted by time. This panel polls the '
+                'service every four seconds, so flows landing from any client '
+                'appear here without anyone clicking refresh. ABSTAIN counts '
+                'are shown separately.</p></div>',
                 unsafe_allow_html=True)
 
-            # Widgets live outside the fragment so the user's choice of day
-            # or row count survives each refresh.
             d1, d2 = st.columns([1.3, 1])
             d1.date_input("Day", value=datetime.now(timezone.utc).date(),
                           key="hist_day", label_visibility="collapsed")
@@ -1032,6 +1010,7 @@ with tab_live:
                     return
 
                 stamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
+                abstain_count = hist.get("abstain", 0)
                 st.markdown(
                     f'<div class="counts" style="margin-bottom:.8rem;'
                     f'align-items:baseline">'
@@ -1041,6 +1020,8 @@ with tab_live:
                     f'</span><small>attack</small></div>'
                     f'<div><span style="color:{BENIGN}">{hist["benign"]}'
                     f'</span><small>benign</small></div>'
+                    f'<div><span style="color:{ABSTAIN_C}">{abstain_count}'
+                    f'</span><small>abstain</small></div>'
                     f'<div style="margin-left:auto;font-size:.7rem;'
                     f'color:var(--muted);align-self:center;font-family:'
                     f'IBM Plex Mono,monospace">pulled {stamp} UTC</div>'
@@ -1059,6 +1040,7 @@ with tab_live:
                           "verdict": i["prediction"],
                           "P(attack)": round(
                               float(i["attack_probability"]), 6),
+                          "spread": round(float(i.get("spread", 0)), 4),
                           **{m: round(float(i["per_model"][m]), 4)
                              for m in MODEL_ORDER}}
                          for i in hist["items"]]
@@ -1085,11 +1067,10 @@ with tab_batch:
             '<div class="panel tight"><h2>Push real traffic through the '
             'deployed system</h2>'
             '<p class="note">Draws flows at random from the held-out test set '
-            'and sends them to the API one at a time, exactly as a client '
-            'would. Every one is scored against its dataset label and written '
-            'to DynamoDB, so this doubles as a way to populate the detection '
-            'history before a demonstration.</p></div>',
-            unsafe_allow_html=True)
+            'and sends them to the API one at a time. Every one is scored '
+            'against its dataset label and written to DynamoDB. Abstained '
+            'flows are tracked separately and excluded from accuracy.</p>'
+            '</div>', unsafe_allow_html=True)
 
         c1, c2, c3, c4 = st.columns([1, 1, 1, 1.4])
         count = c1.number_input("Flows", 5, 200, 40, 5)
@@ -1123,20 +1104,22 @@ with tab_batch:
                         "n": len(rows), "row": int(i),
                         "p": float(out["attack_probability"]),
                         "verdict": out["prediction"], "actual": actual,
+                        "spread": float(out.get("spread", 0)),
                         "correct": out["prediction"] == actual,
                         **{m: float(out["per_model"][m]) for m in MODEL_ORDER}})
                 bar.progress((k + 1) / len(chosen),
                              text=f"sent {k + 1} of {len(chosen)}")
-                # Redraw every few flows rather than every one, so the chart
-                # keeps up without the run being dominated by rendering.
                 if rows and (k % 4 == 0 or k == len(chosen) - 1):
                     with live.container():
-                        hits = sum(r["correct"] for r in rows)
+                        decided = [r for r in rows if r["verdict"] != "ABSTAIN"]
+                        hits = sum(r["correct"] for r in decided)
+                        acc_str = (f'{hits / max(len(decided), 1):.1%}'
+                                   if decided else "—")
                         st.markdown(
                             f'<div class="counts" style="margin:.6rem 0 .3rem">'
                             f'<div><span>{len(rows)}</span><small>sent</small></div>'
-                            f'<div><span>{hits / len(rows):.1%}</span>'
-                            f'<small>accuracy so far</small></div></div>',
+                            f'<div><span>{acc_str}</span>'
+                            f'<small>accuracy on decided</small></div></div>',
                             unsafe_allow_html=True)
                         show_chart(timeline_fig(pd.DataFrame(rows), threshold,
                                                 height=250),
@@ -1154,28 +1137,31 @@ with tab_batch:
                 unsafe_allow_html=True)
         else:
             frame = pd.DataFrame(rows)
-            tp = int(((frame.actual == "ATTACK") & (frame.verdict == "ATTACK")).sum())
-            fn = int(((frame.actual == "ATTACK") & (frame.verdict == "BENIGN")).sum())
-            fp = int(((frame.actual == "BENIGN") & (frame.verdict == "ATTACK")).sum())
-            tn = int(((frame.actual == "BENIGN") & (frame.verdict == "BENIGN")).sum())
+            n_abstain = int((frame.verdict == "ABSTAIN").sum())
+            decided = frame[frame.verdict != "ABSTAIN"]
+            tp = int(((decided.actual == "ATTACK") & (decided.verdict == "ATTACK")).sum())
+            fn = int(((decided.actual == "ATTACK") & (decided.verdict == "BENIGN")).sum())
+            fp = int(((decided.actual == "BENIGN") & (decided.verdict == "ATTACK")).sum())
+            tn = int(((decided.actual == "BENIGN") & (decided.verdict == "BENIGN")).sum())
 
             recall = tp / (tp + fn) if tp + fn else 0.0
             precision = tp / (tp + fp) if tp + fp else 0.0
             f1 = (2 * precision * recall / (precision + recall)
                   if precision + recall else 0.0)
-            accuracy = (tp + tn) / len(frame)
+            accuracy = (tp + tn) / max(len(decided), 1)
+            coverage = len(decided) / max(len(frame), 1)
 
             st.markdown(
                 '<div class="secthead"><h3>What came back</h3>'
-                f'<span>{len(frame)} flows, scored against their dataset labels'
-                '</span></div>', unsafe_allow_html=True)
+                f'<span>{len(frame)} flows, {len(decided)} decided, '
+                f'{n_abstain} abstained</span></div>', unsafe_allow_html=True)
 
             st.markdown(
                 '<div class="kpiband" style="border-top:1px solid var(--rule);'
-                'grid-template-columns:repeat(5,1fr)">'
+                'grid-template-columns:repeat(6,1fr)">'
                 f'<div class="kpi"><div class="n">{accuracy:.1%}</div>'
                 f'<div class="l">accuracy</div>'
-                f'<div class="s">{tp + tn} of {len(frame)} correct</div></div>'
+                f'<div class="s">{tp + tn} of {len(decided)} decided correctly</div></div>'
                 f'<div class="kpi"><div class="n">{recall:.1%}</div>'
                 f'<div class="l">attacks caught</div>'
                 f'<div class="s">{tp} of {tp + fn}</div></div>'
@@ -1187,20 +1173,23 @@ with tab_batch:
                 f'<div class="s">harmonic mean of the two</div></div>'
                 f'<div class="kpi"><div class="n">{fn}</div>'
                 f'<div class="l">attacks missed</div>'
-                f'<div class="s">the costly error</div></div></div>',
+                f'<div class="s">the costly error</div></div>'
+                f'<div class="kpi"><div class="n" style="color:{ABSTAIN_C}">{n_abstain}</div>'
+                f'<div class="l">abstained</div>'
+                f'<div class="s">coverage {coverage:.1%}</div></div></div>',
                 unsafe_allow_html=True)
 
             a, b = st.columns([1.5, 1], gap="medium")
             with a:
                 st.markdown('<div class="caphead"><b>Every flow against the '
                             'threshold</b><span>diamonds are real attacks, '
-                            'orange is a mistake</span></div>',
+                            'orange is a mistake, grey X is ABSTAIN</span></div>',
                             unsafe_allow_html=True)
                 show_chart(timeline_fig(frame, threshold, height=330),
                            key="batch_timeline")
             with b:
                 st.markdown('<div class="caphead"><b>Confusion matrix</b>'
-                            '<span>this sample only</span></div>',
+                            '<span>decided flows only</span></div>',
                             unsafe_allow_html=True)
                 show_chart(confusion_fig(tp, fp, fn, tn, height=330),
                            key="batch_cm")
@@ -1264,17 +1253,18 @@ with tab_batch:
                 st.markdown(
                     f'<p class="note">How many of the four crossed the '
                     f'threshold on each flow. <b>{split}</b> of {len(frame)} '
-                    f'were split decisions the weights had to resolve, which '
-                    f'is where the ensemble earns its place.</p>',
+                    f'were split decisions. Of these, '
+                    f'<b>{n_abstain}</b> triggered the ABSTAIN rule because '
+                    f'member spread exceeded tau_abstain.</p>',
                     unsafe_allow_html=True)
 
             st.markdown('<div class="subhead"><h4>Every flow</h4>'
                         '<span>sorted by how confident the ensemble was</span>'
                         '</div>', unsafe_allow_html=True)
-            table = frame.sort_values("p", ascending=False)[
-                ["row", "actual", "verdict", "p", *MODEL_ORDER]].round(4)
+            cols_to_show = ["row", "actual", "verdict", "p", "spread", *MODEL_ORDER]
+            table = frame.sort_values("p", ascending=False)[cols_to_show].round(4)
             table.columns = ["test row", "actual", "predicted", "P(attack)",
-                             *MODEL_ORDER]
+                             "spread", *MODEL_ORDER]
             show_table(table, height=330)
 
 
