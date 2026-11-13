@@ -32,9 +32,8 @@ import requests
 import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
-API_URL=st.secrets.get("API_URL","http://localhsot:5000")
-API = os.environ.get("QS_API", "http://localhost:5000")
-RESULTS_DIR = os.environ.get("QS_RESULTS", "results")
+API_URL=st.secrets.get("API_URL","http://localhost:5000")
+API = st.secrets.get("API_URL", os.environ.get("QS_API", "http://localhost:5000"))
 DATA_DIR = os.environ.get("QS_DATA", os.path.join("data", "processed"))
 
 MODEL_ORDER = ["DNN", "CNN-1D", "LSTM", "HybridQNN"]
